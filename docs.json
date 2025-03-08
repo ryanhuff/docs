@@ -36,7 +36,7 @@
       },
     {
         "tab": "API Reference",
-        "openapi": "https://github.com/ryanhuff/docs/blob/main/swagger.yaml"
+        "openapi": "./swagger.yaml"
     },
 
       {
