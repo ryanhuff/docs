@@ -3,7 +3,7 @@
   "theme": "mint",
   "name": "quote•hapily Developer Documentation",
   "colors": {
-    "primary": "#FF7A59",
+    "primary": "#16A34A",
     "light": "#07C983",
     "dark": "#15803D"
   },
@@ -18,6 +18,11 @@
     "global": {
       "anchors": [
         {
+          "anchor": "quote•hapily website",
+          "href": "https://quote.hapily.com",
+          "icon": "globe"
+        },
+        {
           "anchor": "User Documentation",
           "href": "https://quote.hapily.com/docs",
           "icon": "book-open-cover"
@@ -25,7 +30,7 @@
         {
           "anchor": "Sign In to quote•hapily",
           "href": "https://app.quote.hapily.com",
-          "icon": "/images/quote-hapily-feather-icon.png"
+          "icon": "right-to-bracket"
         }
       ]
     }
