@@ -25,7 +25,7 @@
         {
           "anchor": "Sign In to quote•hapily",
           "href": "https://app.quote.hapily.com",
-          "icon": "images/quote-hapily-feather-icon.png"
+          "icon": "/images/quote-hapily-feather-icon.png"
         }
       ]
     }
