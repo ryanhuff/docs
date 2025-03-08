@@ -1,0 +1,1310 @@
+openapi: 3.0.0
+info:
+  title: quote•hapily API
+  description: API for managing quotes, bundles, price books, and other quote-related functionality
+  version: 1.0.0
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: header
+      name: Cookie
+      description: |
+        Session cookie for authentication. The value should be formatted as:
+        hapily_session_quote=<session_token>
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Additional error details
+    Bundle:
+      type: object
+      properties:
+        id:
+          type: string
+        accountId:
+          type: string
+        header:
+          $ref: '#/components/schemas/BundleProduct'
+        isActive:
+          type: boolean
+        includedOptionsCount:
+          type: number
+        addOnOptionsCount:
+          type: number
+
+    BundleProduct:
+      type: object
+      properties:
+        id:
+          type: string
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+
+    BundleOption:
+      type: object
+      properties:
+        id:
+          type: string
+        accountId:
+          type: string
+        bundleId:
+          type: string
+        name:
+          type: string
+        priceBookId:
+          type: string
+        displayOrder:
+          type: number
+        configuration:
+          $ref: '#/components/schemas/BundleOptionConfiguration'
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/BundleProduct'
+        defaultProduct:
+          type: string
+
+    BundleOptionConfiguration:
+      type: object
+      properties:
+        minCount:
+          type: number
+        maxCount:
+          type: number
+        defaultOptionProductId:
+          type: string
+
+    OverrideAdjustment:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [override]
+        amount:
+          type: number
+
+    PercentAdjustment:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [percent]
+        amount:
+          type: number
+
+    VolumeAdjustment:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [volume]
+        tiers:
+          type: array
+          items:
+            type: object
+            properties:
+              firstUnit:
+                type: number
+              lastUnit:
+                oneOf:
+                  - type: number
+                  - type: string
+                  - type: 'null'
+              unitPrice:
+                type: number
+
+    NullAdjustment:
+      type: object
+      properties:
+        type:
+          type: 'null'
+        amount:
+          type: 'null'
+
+    PriceBookEntry:
+      type: object
+      properties:
+        accountId:
+          type: string
+        priceBookId:
+          type: string
+        productId:
+          type: string
+        adjustments:
+          type: object
+          additionalProperties:
+            oneOf:
+              - $ref: '#/components/schemas/OverrideAdjustment'
+              - $ref: '#/components/schemas/PercentAdjustment'
+              - $ref: '#/components/schemas/VolumeAdjustment'
+              - $ref: '#/components/schemas/NullAdjustment'
+
+security:
+  - cookieAuth: []
+
+paths:
+  # Authentication & Users
+  /v1/session:
+    post:
+      summary: Create a new session
+      tags: [Authentication]
+      security: []  # No auth required
+      responses:
+        '200':
+          description: Session created successfully
+  
+  /v1/session/validate:
+    post:
+      summary: Validate magic link
+      tags: [Authentication]
+      security: []  # No auth required
+      responses:
+        '200':
+          description: Magic link validated successfully
+
+  /v1/session/logout:
+    post:
+      summary: End the current session
+      tags: [Authentication]
+      responses:
+        '204':
+          description: Session ended successfully
+
+  /v1/users:
+    get:
+      summary: List users
+      tags: [Users]
+      responses:
+        '200':
+          description: List of users retrieved successfully
+
+  # Preferences
+  /v1/preferences/{entityType}:
+    get:
+      summary: List preferences
+      tags: [Preferences]
+      parameters:
+        - name: entityType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [user, account]
+      responses:
+        '200':
+          description: Preferences retrieved successfully
+
+  /v1/preferences/{entityType}/{preferenceName}:
+    get:
+      summary: Get specific preference
+      tags: [Preferences]
+      parameters:
+        - name: entityType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [user, account]
+        - name: preferenceName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Preference retrieved successfully
+    
+    put:
+      summary: Update preference
+      tags: [Preferences]
+      parameters:
+        - name: entityType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [user, account]
+        - name: preferenceName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                value:
+                  type: string
+      responses:
+        '200':
+          description: Preference updated successfully
+
+  # Bundles
+  /v1/bundles:
+    get:
+      summary: List bundles
+      tags: [Bundles]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: List of bundles retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bundles:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Bundle'
+    
+    post:
+      summary: Create bundle
+      tags: [Bundles]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - header
+              properties:
+                header:
+                  type: object
+                  required:
+                    - id
+                    - properties
+                  properties:
+                    id:
+                      type: string
+                    properties:
+                      type: object
+                      additionalProperties:
+                        oneOf:
+                          - type: string
+                          - type: 'null'
+      responses:
+        '201':
+          description: Bundle created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bundle'
+
+  /v1/bundles/{bundleId}:
+    parameters:
+      - name: bundleId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get bundle
+      tags: [Bundles]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Bundle retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bundle:
+                    $ref: '#/components/schemas/Bundle'
+                  options:
+                    type: object
+                    properties:
+                      included:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/BundleOption'
+                      addOns:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/BundleOption'
+
+    delete:
+      summary: Delete bundle
+      tags: [Bundles]
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Bundle deleted successfully
+
+  /v1/bundles/{bundleId}/state:
+    parameters:
+      - name: bundleId
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      summary: Set bundle state
+      tags: [Bundles]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - isActive
+              properties:
+                isActive:
+                  type: boolean
+      responses:
+        '200':
+          description: Bundle state updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bundle'
+
+  /v1/bundles/{bundleId}/header:
+    parameters:
+      - name: bundleId
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      summary: Set bundle header
+      tags: [Bundles]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - header
+              properties:
+                header:
+                  type: object
+                  required:
+                    - id
+                    - properties
+                  properties:
+                    id:
+                      type: string
+                    properties:
+                      type: object
+                      additionalProperties:
+                        oneOf:
+                          - type: string
+                          - type: 'null'
+      responses:
+        '200':
+          description: Bundle header updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bundle'
+
+  # Bundle Options
+  /v1/bundles/{bundleId}/options:
+    parameters:
+      - name: bundleId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: ID of the bundle
+    post:
+      summary: Create a new bundle option
+      description: |
+        Creates a new bundle option with optional initial products.
+        - Creates a dedicated price book for the option
+        - Automatically assigns display order after existing options
+        - Creates price book entries with default price of 0 USD for any provided products
+      tags: [Bundle Options]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type]
+              properties:
+                name:
+                  type: string
+                  description: Name of the bundle option
+                type:
+                  type: string
+                  enum: [ADD_ON, INCLUDED]
+                  description: Type of bundle option. INCLUDED options have minCount=1
+                products:
+                  type: array
+                  description: Optional list of initial products to add to the option
+                  items:
+                    type: object
+                    required: [productId, properties]
+                    properties:
+                      productId:
+                        type: string
+                        description: ID of the product to add
+                      properties:
+                        type: object
+                        additionalProperties:
+                          type: string
+                        description: Key-value pairs of product properties
+      responses:
+        '201':
+          description: Bundle option created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  accountId:
+                    type: string
+                  bundleId:
+                    type: string
+                  name:
+                    type: string
+                  priceBookId:
+                    type: string
+                  displayOrder:
+                    type: number
+                  configuration:
+                    $ref: '#/components/schemas/BundleOptionConfiguration'
+                  products:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BundleProduct'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Bundle not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/bundles/{bundleId}/options/{optionId}:
+    parameters:
+      - name: bundleId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: optionId
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      summary: Update bundle option
+      tags: [Bundle Options]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                configuration:
+                  type: object
+                  properties:
+                    minCount:
+                      type: number
+                    maxCount:
+                      type: number
+                    defaultOptionProductId:
+                      type: string
+                displayOrder:
+                  type: number
+      responses:
+        '200':
+          description: Bundle option updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BundleOption'
+
+    delete:
+      summary: Delete bundle option
+      tags: [Bundle Options]
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Bundle option deleted successfully
+
+  /v1/bundles/{bundleId}/options/{optionId}/clone:
+    parameters:
+      - name: bundleId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: ID of the bundle
+      - name: optionId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: ID of the bundle option to clone
+    post:
+      summary: Clone bundle option
+      description: |
+        Creates a copy of an existing bundle option with all its products and price book.
+        - Creates a copy of the original bundle option with "(clone)" appended to its name
+        - Creates a new price book for the cloned option
+        - Copies all price book entries from the original price book to the new one
+        - Copies all products from the original option to the new one
+        - Maintains all configurations, properties, and adjustments from the original
+      tags: [Bundle Options]
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          description: Bundle option cloned successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  option:
+                    $ref: '#/components/schemas/BundleOption'
+                  products:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BundleProduct'
+                  priceBook:
+                    $ref: '#/components/schemas/PriceBook'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Bundle option not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/bundles/{bundleId}/options/{optionId}/products:
+    post:
+      summary: Add products to a bundle option
+      description: |
+        Adds one or more products to an existing bundle option.
+        - Automatically assigns display order for new products after existing ones
+        - Creates price book entries for each product with default price of 0 USD
+      tags: [Bundle Options]
+      parameters:
+        - name: bundleId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID of the bundle
+        - name: optionId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID of the bundle option
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [products]
+              properties:
+                products:
+                  type: array
+                  items:
+                    type: object
+                    required: [productId, properties]
+                    properties:
+                      productId:
+                        type: string
+                        description: ID of the product to add
+                      properties:
+                        type: object
+                        additionalProperties:
+                          type: string
+                        description: Key-value pairs of product properties
+      responses:
+        '200':
+          description: Products added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  option:
+                    $ref: '#/components/schemas/BundleOption'
+                  products:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BundleProduct'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Bundle option not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/bundles/{bundleId}/options/{optionId}/{productId}/price:
+    parameters:
+      - name: bundleId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: optionId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: productId
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      summary: Set option product price
+      tags: [Bundle Options]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - adjustments
+              properties:
+                adjustments:
+                  type: object
+                  additionalProperties:
+                    oneOf:
+                      - $ref: '#/components/schemas/OverrideAdjustment'
+                      - $ref: '#/components/schemas/PercentAdjustment'
+                      - $ref: '#/components/schemas/VolumeAdjustment'
+                      - $ref: '#/components/schemas/NullAdjustment'
+                      - type: 'null'
+      responses:
+        '200':
+          description: Product price updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriceBookEntry'
+        '400':
+          description: Invalid currencies specified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /v1/bundles/{bundleId}/options/{optionId}/{productId}:
+    parameters:
+      - name: bundleId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: optionId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: productId
+        in: path
+        required: true
+        schema:
+          type: string
+    delete:
+      summary: Delete option product
+      tags: [Bundle Options]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Product deleted successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    accountId:
+                      type: string
+                    bundleId:
+                      type: string
+                    optionId:
+                      type: string
+                    productId:
+                      type: string
+                    properties:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    displayOrder:
+                      type: number
+                    configuration:
+                      type: object
+                      properties:
+                        minQuantity:
+                          type: number
+                        maxQuantity:
+                          type: number
+                        readonlyQuantity:
+                          type: boolean
+
+  # Price Books
+  /v1/pricebooks:
+    get:
+      summary: List price books
+      tags: [Price Books]
+      responses:
+        '200':
+          description: List of price books retrieved successfully
+    
+    post:
+      summary: Create price book
+      tags: [Price Books]
+      responses:
+        '201':
+          description: Price book created successfully
+
+  /v1/pricebooks/{priceBookId}:
+    get:
+      summary: Get price book
+      tags: [Price Books]
+      parameters:
+        - name: priceBookId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Price book retrieved successfully
+
+    patch:
+      summary: Update price book
+      tags: [Price Books]
+      parameters:
+        - name: priceBookId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Price book updated successfully
+
+    delete:
+      summary: Delete price book
+      tags: [Price Books]
+      parameters:
+        - name: priceBookId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Price book deleted successfully
+
+  /v1/pricebooks/{priceBookId}/clone:
+    post:
+      summary: Clone price book
+      tags: [Price Books]
+      parameters:
+        - name: priceBookId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Price book cloned successfully
+
+  # Calculations
+  /v1/calculations:
+    get:
+      summary: List calculations
+      tags: [Calculations]
+      responses:
+        '200':
+          description: List of calculations retrieved successfully
+    
+    post:
+      summary: Create calculation
+      tags: [Calculations]
+      responses:
+        '201':
+          description: Calculation created successfully
+
+  /v1/calculations/{calculationId}:
+    get:
+      summary: Get calculation
+      tags: [Calculations]
+      parameters:
+        - name: calculationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Calculation retrieved successfully
+
+    put:
+      summary: Update calculation
+      tags: [Calculations]
+      parameters:
+        - name: calculationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Calculation updated successfully
+
+    delete:
+      summary: Delete calculation
+      tags: [Calculations]
+      parameters:
+        - name: calculationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Calculation deleted successfully
+
+  # Product Collections
+  /v1/collections:
+    get:
+      summary: List product collections
+      tags: [Product Collections]
+      responses:
+        '200':
+          description: List of product collections retrieved successfully
+    
+    post:
+      summary: Create product collection
+      tags: [Product Collections]
+      responses:
+        '201':
+          description: Product collection created successfully
+
+  /v1/collections/{collectionId}:
+    get:
+      summary: Get product collection
+      tags: [Product Collections]
+      parameters:
+        - name: collectionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Product collection retrieved successfully
+
+    put:
+      summary: Update product collection
+      tags: [Product Collections]
+      parameters:
+        - name: collectionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Product collection updated successfully
+
+    delete:
+      summary: Delete product collection
+      tags: [Product Collections]
+      parameters:
+        - name: collectionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Product collection deleted successfully
+
+  # Terms
+  /v1/terms:
+    get:
+      summary: List terms
+      tags: [Terms]
+      responses:
+        '200':
+          description: List of terms retrieved successfully
+    
+    post:
+      summary: Create terms
+      tags: [Terms]
+      responses:
+        '201':
+          description: Terms created successfully
+
+  /v1/terms/{termsId}:
+    get:
+      summary: Get terms
+      tags: [Terms]
+      parameters:
+        - name: termsId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Terms retrieved successfully
+
+    put:
+      summary: Update terms
+      tags: [Terms]
+      parameters:
+        - name: termsId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Terms updated successfully
+
+    delete:
+      summary: Delete terms
+      tags: [Terms]
+      parameters:
+        - name: termsId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Terms deleted successfully
+
+  # Roll Ups
+  /v1/rollups:
+    get:
+      summary: List roll ups
+      tags: [Roll Ups]
+      responses:
+        '200':
+          description: List of roll ups retrieved successfully
+    
+    post:
+      summary: Create roll up
+      tags: [Roll Ups]
+      responses:
+        '201':
+          description: Roll up created successfully
+
+  /v1/rollups/{rollupId}:
+    get:
+      summary: Get roll up
+      tags: [Roll Ups]
+      parameters:
+        - name: rollupId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Roll up retrieved successfully
+
+    put:
+      summary: Update roll up
+      tags: [Roll Ups]
+      parameters:
+        - name: rollupId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Roll up updated successfully
+
+    delete:
+      summary: Delete roll up
+      tags: [Roll Ups]
+      parameters:
+        - name: rollupId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Roll up deleted successfully
+
+  # Uploads
+  /v1/upload:
+    post:
+      summary: Generate public upload URL
+      tags: [Uploads]
+      responses:
+        '200':
+          description: Upload URL generated successfully
+
+  /v1/privateUpload:
+    post:
+      summary: Generate private upload URL
+      tags: [Uploads]
+      responses:
+        '200':
+          description: Upload URL generated successfully
+
+  # Onboarding
+  /v1/onboarding:
+    get:
+      summary: Get onboarding state
+      tags: [Onboarding]
+      responses:
+        '200':
+          description: Onboarding state retrieved successfully
+    
+    put:
+      summary: Update onboarding state
+      tags: [Onboarding]
+      responses:
+        '200':
+          description: Onboarding state updated successfully
+
+  # Approvals
+  /v1/review-quote:
+    get:
+      summary: Review quote
+      tags: [Approvals]
+      responses:
+        '200':
+          description: Quote review retrieved successfully
+
+  /v1/preview-quote:
+    get:
+      summary: Preview quote
+      tags: [Approvals]
+      responses:
+        '200':
+          description: Quote preview retrieved successfully
+
+  /v1/approve-quote:
+    post:
+      summary: Approve quote
+      tags: [Approvals]
+      responses:
+        '200':
+          description: Quote approved successfully
+
+  /v1/reject-quote:
+    post:
+      summary: Reject quote
+      tags: [Approvals]
+      responses:
+        '200':
+          description: Quote rejected successfully
+
+  /v1/hubspot/upsert/{objectType}/{recordId}:
+    parameters:
+      - name: objectType
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The HubSpot object type (e.g. 'deals', 'contacts', etc.)
+      - name: recordId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the record to update
+    post:
+      summary: Update an existing HubSpot object
+      tags: [HubSpot]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                properties:
+                  type: object
+                  additionalProperties:
+                    oneOf:
+                      - type: string
+                      - type: 'null'
+                associations:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      to:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                      types:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            associationCategory:
+                              type: string
+                            associationTypeId:
+                              type: number
+      responses:
+        '200':
+          description: Object updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  properties:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  createdAt:
+                    type: string
+                    format: date-time
+                  updatedAt:
+                    type: string
+                    format: date-time
+                  archived:
+                    type: boolean
+
+  /v1/hubspot/upsert/{objectType}:
+    parameters:
+      - name: objectType
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The HubSpot object type (e.g. 'deals', 'contacts', etc.)
+    put:
+      summary: Create a new HubSpot object
+      tags: [HubSpot]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                properties:
+                  type: object
+                  additionalProperties:
+                    oneOf:
+                      - type: string
+                      - type: 'null'
+                associations:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      to:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                      types:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            associationCategory:
+                              type: string
+                            associationTypeId:
+                              type: number
+      responses:
+        '201':
+          description: Object created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  properties:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  createdAt:
+                    type: string
+                    format: date-time
+                  updatedAt:
+                    type: string
+                    format: date-time
+                  archived:
+                    type: boolean 
